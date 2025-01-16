@@ -50,6 +50,9 @@ function processImage(image) {
     ? detectSimpleEdges(grayData, complexity) 
     : detectGradientEdges(grayData, complexity);
 
+  // 將邊緣點分段，並根據複雜度決定是否連接
+  edges = segmentEdges(edges);
+
   renderEdges();  // 渲染邊緣
 }
 
@@ -108,6 +111,33 @@ function detectGradientEdges(grayData, threshold) {
   return detectedEdges;
 }
 
+// 將邊緣點分段，並根據複雜度進行調整
+function segmentEdges(edges) {
+  const segments = [];
+  let currentSegment = [];
+
+  for (let i = 0; i < edges.length; i++) {
+    const point = edges[i];
+    currentSegment.push(point);
+
+    // 如果遇到大範圍的變化，則將此段分開
+    if (i > 0 && Math.abs(edges[i - 1].x - point.x) > 1) {
+      segments.push(currentSegment);
+      currentSegment = [];
+    }
+  }
+
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment); // 加入最後一段
+  }
+
+  // 根據複雜度進行調整：高複雜度保留更多細節，低複雜度則簡化為較長的段
+  if (complexity < 50) {
+    return segments.slice(0, 2); // 複雜度低，將線段數量縮小
+  }
+  return segments;
+}
+
 // 渲染圖片和邊緣
 function renderEdges() {
   ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空畫布
@@ -129,23 +159,30 @@ function renderEdges() {
     }
   }
 
-  // 繪製輪廓線
-  ctx.strokeStyle = "red";
+  // 渲染每一段線條
+  edges.forEach((segment) => {
+    drawLineSegment(segment);
+  });
+}
+
+// 繪製單一線段
+function drawLineSegment(segment) {
+  if (segment.length < 2) return;
+
+  ctx.beginPath();
+  segment.forEach((point, index) => {
+    const { x, y } = point;
+    const posX = x * (canvas.width / resolution) + (canvas.width / resolution) / 2;
+    const posY = y * (canvas.height / resolution) + (canvas.height / resolution) / 2;
+
+    if (index === 0) {
+      ctx.moveTo(posX, posY);
+    } else {
+      ctx.lineTo(posX, posY);
+    }
+  });
+
+  ctx.strokeStyle = "red"; // 線條顏色
   ctx.lineWidth = 2;
-
-  if (edges.length > 1) {
-    ctx.beginPath();
-    edges.forEach((edge, index) => {
-      const { x, y } = edge;
-      const posX = x * cellSize + cellSize / 2;
-      const posY = y * cellSize + cellSize / 2;
-
-      if (index === 0) {
-        ctx.moveTo(posX, posY);
-      } else {
-        ctx.lineTo(posX, posY);
-      }
-    });
-    ctx.stroke();
-  }
+  ctx.stroke();
 }
